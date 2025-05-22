@@ -9,20 +9,23 @@
 
 class Game {
 public:
-    Game();
+    Game(); // Initialize lives to 3 here
     void start();
     void update();
     void render();
     bool isRunning() const;
 
 private:
+    void renderGameOver(); // Method to render game over screen
     bool running;
+    bool gameOver; // Game over state
+    int lives; // Player lives
     Player player;
     std::vector<Enemy> enemies;
     std::vector<Bullet> playerBullets;
     std::vector<Bullet> enemyBullets;
     std::vector<Explosion> explosions; // Track explosions
-    int deathCount; // Track the number of times the player has died
+    // int deathCount; // Track the number of times the player has died - Replaced by lives
     int enemyKillCount; // Track the number of enemies killed
     int spawnCounter; // Counter to control enemy spawning
     static const int spawnInterval = 50; // Interval to spawn new enemies
