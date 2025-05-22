@@ -6,7 +6,8 @@
 #include <chrono>
 #include <algorithm> // Include this header for std::remove_if
 
-Game::Game() : running(true), player(gameWidth / 2, gameHeight - 2), deathCount(0), enemyKillCount(0), spawnCounter(0) {
+// Initialize gameOver to false in the constructor
+Game::Game() : running(true), player(gameWidth / 2, gameHeight - 2), lives(3), enemyKillCount(0), spawnCounter(0), gameOver(false) {
     int numEnemies = 5;
     int spacing = gameWidth / (numEnemies + 1);
     for (int i = 0; i < numEnemies; ++i) {
@@ -30,14 +31,43 @@ void Game::start() {
     ShowWindow(console, SW_RESTORE);
     SetForegroundWindow(console);
 
-    while (isRunning()) {
-        update();
-        render();
-        std::this_thread::sleep_for(std::chrono::milliseconds(100)); // Simple game loop delay
+    // Modified main loop in Game::start()
+    while (running) { 
+        if (gameOver) {
+            renderGameOver();
+            if (GetAsyncKeyState('Q') & 0x8000) {
+                running = false;
+            }
+            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        } else {
+            // Check if game should stop due to other reasons (e.g. player quit mid-game via 'Q' in update)
+            // isRunning() currently returns 'running'. If 'Q' is pressed in update(), 'running' becomes false.
+            if (!isRunning()) { 
+                 break; 
+            }
+            update();
+            render();
+            std::this_thread::sleep_for(std::chrono::milliseconds(100)); // Game loop delay
+        }
     }
 }
 
 void Game::update() {
+    // Handle 'Q' to quit first. If 'Q' is pressed, game loop in start() will terminate.
+    if (GetAsyncKeyState('Q') & 0x8000) {
+        running = false;
+        // std::cout << "Game ended by user." << std::endl; // Optional: remove if Game Over screen is enough
+        return; // Important to return here so no other updates happen if quitting.
+    }
+
+    // If game is over, no game logic updates should occur.
+    // This check is technically redundant if start() loop doesn't call update() when gameOver is true,
+    // but it's a good safeguard.
+    if (gameOver) {
+        return;
+    }
+
+    // Player movement and actions
     if (GetAsyncKeyState(VK_UP) & 0x8000) {
         player.moveUp();
     }
@@ -95,8 +125,12 @@ void Game::update() {
     // Check for collisions and remove hit player and bullets
     for (auto it = enemyBullets.begin(); it != enemyBullets.end();) {
         if (it->checkCollision(player)) {
-            deathCount++; // Increment death count
-            player = Player(gameWidth / 2, gameHeight - 2); // Reset player position
+            lives--; // Decrement lives
+            player = Player(gameWidth / 2, gameHeight - 2); // Reset player position (will be refined in next subtask)
+            // If lives are depleted, set gameOver state
+            if (lives <= 0) {
+                gameOver = true;
+            }
             it = enemyBullets.erase(it); // Remove the bullet that hit the player
         } else {
             ++it;
@@ -149,9 +183,30 @@ void Game::render() {
     // Display the scoreboard
     COORD pos = {0, 0};
     SetConsoleCursorPosition(GetStdHandle(STD_OUTPUT_HANDLE), pos);
-    std::cout << "D = " << deathCount << "  E = " << enemyKillCount;
+    std::cout << "Lives: " << lives << "  E = " << enemyKillCount;
+}
+
+// Implement Game::renderGameOver()
+void Game::renderGameOver() {
+    clearScreen();
+    COORD pos;
+
+    // Display "GAME OVER" message (centered)
+    pos = { (short)(gameWidth / 2 - 5), (short)(gameHeight / 2 - 2) }; 
+    SetConsoleCursorPosition(GetStdHandle(STD_OUTPUT_HANDLE), pos);
+    std::cout << "GAME OVER";
+
+    // Display final score (centered below "GAME OVER")
+    pos = { (short)(gameWidth / 2 - 15), (short)(gameHeight / 2) }; 
+    SetConsoleCursorPosition(GetStdHandle(STD_OUTPUT_HANDLE), pos);
+    std::cout << "Final Score (Enemies Killed): " << enemyKillCount;
+
+    // Display "Press Q to Quit" message (centered below score)
+    pos = { (short)(gameWidth / 2 - 7), (short)(gameHeight / 2 + 2) }; 
+    SetConsoleCursorPosition(GetStdHandle(STD_OUTPUT_HANDLE), pos);
+    std::cout << "Press Q to Quit";
 }
 
 bool Game::isRunning() const {
-    return running;
+    return running && !gameOver;
 }
